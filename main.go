@@ -8,31 +8,26 @@ import (
 )
 
 func main() {
-	// key, _ := GeneratePrivateKey()
-	// fmt.Println(key)
+	walletM := wallet.NewWallet()
+	walletA := wallet.NewWallet()
+	walletB := wallet.NewWallet()
 
-	w := wallet.NewWallet()
-	fmt.Println("Public Key 	:", w.PublicKeyStr())
-	fmt.Println("Private  Key 	:", w.PrivateKeyStr())
-	fmt.Println("Address 		:", w.BlockChainAddress())
+	walletM.Print()
+	walletA.Print()
+	walletB.Print()
 
-	// block0 and chain
-	myAddress := "my bc address"
-	bc := block.NewBlockChain(myAddress)
-	bc.Print()
+	t := wallet.NewTransaction(walletA.PrivateKey(), walletA.PublicKey(), walletA.BlockChainAddress(), walletB.BlockChainAddress(), 10)
+	fmt.Printf("signature %s", t.GenerateSignature())
 
-	// block2
-	t := block.NewTransaction("sachin", "suvarna", 20.0)
-	bc.AddTransaction(t)
+	bc := block.NewBlockChain(walletM.BlockChainAddress())
+	isAdded := bc.AddTransaction(walletA.BlockChainAddress(), walletB.BlockChainAddress(), 10, walletA.PublicKey(), t.GenerateSignature())
+
+	fmt.Println("Added?", isAdded)
+
 	bc.Mining()
 	bc.Print()
 
-	// block3
-	t = block.NewTransaction("suvarna", "chetan", 10.0)
-	bc.AddTransaction(t)
-
-	t = block.NewTransaction("suvarna", "sachin", 10.0)
-	bc.AddTransaction(t)
-	bc.Mining()
-	bc.Print()
+	fmt.Println("Total A : ", bc.CalculateTotalAmount(walletA.BlockChainAddress()))
+	fmt.Println("Total B : ", bc.CalculateTotalAmount(walletB.BlockChainAddress()))
+	fmt.Println("Total M : ", bc.CalculateTotalAmount(walletM.BlockChainAddress()))
 }

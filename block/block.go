@@ -2,49 +2,54 @@ package block
 
 // Importing fmt and time
 import (
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/sachinpuranik/blockchain/utils"
 )
 
 var (
-	MINING_DIFFICULTY = 3
-	MINING_SENDER     = "THE BLOCKCHAIN"
-	MINING_REWARD     = 1.0
+	MINING_DIFFICULTY         = 3
+	MINING_SENDER             = "THE BLOCKCHAIN"
+	MINING_REWARD     float32 = 1.0
 )
 
 type Transaction struct {
-	senderAddress    string
-	recipientAddress string
-	amount           float32
+	senderBlockChainAddress    string
+	recipientBlockChainAddress string
+	amount                     float32
 }
 
-func NewTransaction(sender string, receiver string, amount float32) *Transaction {
-	return &Transaction{sender, receiver, amount}
+func NewTransaction(senderBlockChainAddress string, recipientBlockChainAddress string, amount float32) *Transaction {
+	t := new(Transaction)
+	t.senderBlockChainAddress = senderBlockChainAddress
+	t.recipientBlockChainAddress = recipientBlockChainAddress
+	t.amount = amount
+	return t
 }
 
 func (t *Transaction) Print() {
-	fmt.Printf("\n		SenderAddress		:%v", t.senderAddress)
-	fmt.Printf("\n		RecipientAddress 	:%v", t.recipientAddress)
-	fmt.Printf("\n		Amount 				:%f", t.amount)
+	fmt.Printf("\n	SenderAddress 	:%s", t.senderBlockChainAddress)
+	fmt.Printf("\n	RecipientAddress 	:%s", t.recipientBlockChainAddress)
+	fmt.Printf("\n	Amount 				:%f", t.amount)
 }
 
-func (t Transaction) MarshaJSONl() []byte {
+func (t Transaction) MarshaJSON() []byte {
 	jsonBytes, _ := json.Marshal(struct {
-		SenderAddress    string  `json:"sender_address"`
-		RecipientAddress string  `json:"recipient_address"`
-		Amount           float32 `json:"amount"`
+		SenderBlockChainAddress    string  `json:"sender_blockchain_address"`
+		RecipientBlockChainAddress string  `json:"recipient_blockchain_address"`
+		Amount                     float32 `json:"amount"`
 	}{
-		SenderAddress:    t.senderAddress,
-		RecipientAddress: t.recipientAddress,
-		Amount:           t.amount,
+		SenderBlockChainAddress:    t.senderBlockChainAddress,
+		RecipientBlockChainAddress: t.recipientBlockChainAddress,
+		Amount:                     t.amount,
 	})
 	return jsonBytes
 }
-
-// ***********
 
 type Block struct {
 	perviousHash []byte
@@ -130,14 +135,33 @@ func (bc *BlockChain) LastBlock() *Block {
 	return bc.chain[len(bc.chain)-1]
 }
 
-func (bc *BlockChain) AddTransaction(t *Transaction) {
-	bc.transactionPool = append(bc.transactionPool, t)
+func (bc *BlockChain) AddTransaction(sender string, recipient string, amount float32, senderPublicKey *ecdsa.PublicKey, s *utils.Signature) bool {
+	if sender == recipient {
+		fmt.Println("sender and receiver can not be same")
+		return false
+	}
+	t := NewTransaction(sender, recipient, amount)
+	if sender == MINING_SENDER {
+		bc.transactionPool = append(bc.transactionPool, t)
+		return true
+	}
+	if bc.VerifyTransactionSignature(senderPublicKey, s, t) {
+		bc.transactionPool = append(bc.transactionPool, t)
+		return true
+	}
+	return false
+}
+
+func (bc *BlockChain) VerifyTransactionSignature(senderPublicKey *ecdsa.PublicKey, s *utils.Signature, t *Transaction) bool {
+	m, _ := json.Marshal(t)
+	h := sha256.Sum256([]byte(m))
+	return ecdsa.Verify(senderPublicKey, h[:], s.R, s.S)
 }
 
 func (bc *BlockChain) CopyTransactionPool() []*Transaction {
 	copyPool := make([]*Transaction, len(bc.transactionPool))
 	for i, t := range bc.transactionPool {
-		copyPool[i] = NewTransaction(t.senderAddress, t.recipientAddress, t.amount)
+		copyPool[i] = NewTransaction(t.senderBlockChainAddress, t.recipientBlockChainAddress, t.amount)
 	}
 	return copyPool
 }
@@ -160,9 +184,25 @@ func (bc *BlockChain) ProofOfWork() int {
 }
 
 func (bc *BlockChain) Mining() bool {
-	t := NewTransaction(MINING_SENDER, bc.blockchainAddress, float32(MINING_REWARD))
-	bc.AddTransaction(t)
+	bc.AddTransaction(MINING_SENDER, bc.blockchainAddress, MINING_REWARD, nil, nil)
 	nonce := bc.ProofOfWork()
 	bc.CreateBlock(nonce, bc.LastBlock().Hash())
 	return true
+}
+
+func (bc *BlockChain) CalculateTotalAmount(blockchainAddress string) float32 {
+	var totalAmount float32 = 0.0
+	for _, b := range bc.chain {
+		for _, t := range b.transactions {
+			amount := t.amount
+			if blockchainAddress == t.recipientBlockChainAddress {
+				totalAmount += amount
+			}
+
+			if blockchainAddress == t.senderBlockChainAddress {
+				totalAmount -= amount
+			}
+		}
+	}
+	return totalAmount
 }
