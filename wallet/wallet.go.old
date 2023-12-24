@@ -1,0 +1,92 @@
+package wallet
+
+import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/hex"
+	"io"
+)
+
+var addressLen = 20
+
+// ***********
+type PrivateKey struct {
+	key ed25519.PrivateKey
+}
+
+func NewPrivateKeyFromString(str string) *PrivateKey {
+	b, err := hex.DecodeString(str)
+	if err != nil {
+		panic(err)
+	}
+	return &PrivateKey{ed25519.NewKeyFromSeed(b)}
+}
+
+func NewProvateKeyFromSeed(seed []byte) *PrivateKey {
+	if len(seed) != ed25519.SeedSize {
+		panic("length of seed is not enough")
+	}
+
+	return &PrivateKey{ed25519.NewKeyFromSeed(seed)}
+}
+
+func GeneratePrivateKey() (*PrivateKey, error) {
+	var pk PrivateKey
+	seed := make([]byte, ed25519.SeedSize)
+	_, err := io.ReadFull(rand.Reader, seed)
+	if err != nil {
+		return nil, err
+	}
+	pk.key = ed25519.NewKeyFromSeed(seed)
+	return &pk, nil
+}
+
+// ***********
+func (pk *PrivateKey) Public() *PublicKey {
+	return &PublicKey{key: ed25519.PublicKey(pk.key[32:])}
+}
+
+func (pk *PrivateKey) Sign(msg string) Signature {
+	return Signature{ed25519.Sign(pk.key, []byte(msg))}
+}
+
+func (pk *PrivateKey) Bytes() []byte {
+	return pk.key
+}
+
+//***********
+
+type PublicKey struct {
+	key ed25519.PublicKey
+}
+
+func (puk *PublicKey) Bytes() []byte {
+	return puk.key
+}
+
+func (puk *PublicKey) Address() Address {
+	return Address{puk.key[len(puk.key)-addressLen:]}
+}
+
+//***********
+
+type Signature struct {
+	value []byte
+}
+
+func (s *Signature) Bytes() []byte {
+	return s.value
+}
+
+func (s *Signature) Verify(puk *PublicKey, msg string) bool {
+	return ed25519.Verify(puk.Bytes(), []byte(msg), s.Bytes())
+}
+
+// ***********
+type Address struct {
+	value []byte
+}
+
+func (a *Address) String() string {
+	return hex.EncodeToString(a.value)
+}
