@@ -146,6 +146,9 @@ func (bc *BlockChain) AddTransaction(sender string, recipient string, amount flo
 		return true
 	}
 	if bc.VerifyTransactionSignature(senderPublicKey, s, t) {
+		/*if bc.CalculateTotalAmount(sender) < amount {
+			return false
+		}*/
 		bc.transactionPool = append(bc.transactionPool, t)
 		return true
 	}
